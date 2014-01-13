@@ -861,3 +861,161 @@ var basketModule = (function () {
 
 ```
 
+Dentro do módulo, você deve ter notado que nós retornamos um `object` (objeto). Ele é automaticamente atribuído ao `basketModule` então podemos interagir com ele, podendo ser visto no exemplo seguinte:
+
+```javascript
+
+// basketModule retorna um objeto com uma API pública que podemos usar
+
+basketModule.addItem({
+	item: "bread",
+	price: 0.5
+});
+
+basketModule.addItem({
+	item: "butter",
+	price: 0.3
+});
+
+// Saída: 2
+console.log( basketModule.getItemCount() );
+
+// Saída: 0.8
+console.log( basketModule.getTotal() );
+
+// Entretanto, o seguinte não vai funcionar:
+
+// Saída: undefined
+// Isto por causa que a cesta não é exposta
+// como parte de nossa API pública
+console.log( basketModule.basket );
+
+// Isto também não vai funcionar porque somente
+// existe dentro do escopo do nosso closure
+// basketModule, mas não no objeto público retornardo
+console.log( basket );
+
+```
+
+Os métodos acima são efetivamente incluídos no namespace dentro de `basketModule`.
+
+Note como o escopo da função acima `basketModule` é envolvido em todas as funções, que nós então chamamos e imediatamente armazenam o valor do retorno. Isto tem vantagens como:
+
+* A liberdade de ter funções privadas que podem somente ser consumidas pelo nosso módulo. Se elas não forem expostas ao resto da página (somente nossa API for exportada), elas serão consideradas realmente privadas.
+* Dado que funções são declaradas normalmente e são nomeadas, pode ser fácil mostrar chamá-las em um *debugger* quando estivermos tentando descobrir qual função/funções lançou uma exceção.
+* Como T.J Crowder apontou no passado, isto também nos habilita a retornar diferentes funções dependendo do ambiente. No passado, eu vi desenvolvedores usar isto para realizar testes UA, a fim de fornecer um caminho de código em seu módulo específico para o IE, mas nós podemos facilmente optar por detectar funcionalidades nos dias de hoje para alcançar o mesmo objetivo.
+
+### Variações do Padrão Modular
+
+**Importando Mixins**
+
+Esta variação do padrão demonstra como as globais (por exemplo JQuery, Underscore) podem ser passadas como argumentos para nossa função anônima modular. Isto nos permite efetivamete *importá-las* e *renomea-las* localmente como quisermos.
+
+```javascript
+
+var myModule = (function ( jQ, _ ) {
+	
+	function privateMethod1 () {
+		jQ(".container").html("test");
+	}
+
+	function privateMethod2 () {
+		console.log( _min([10, 5, 100, 2, 1000]) );
+	}
+
+	return {
+		publicMethod: function () {
+			privateMethod1();
+		}
+	};
+
+// Colocando no jQuery e Underscore
+})( jQuery, _ );
+
+myModule.publicMethod();
+
+```
+
+**Exports**
+
+Esta variação nos permite declarar globais sem consumí-las e pode, de forma similar, suportar o conceito de importação de globais como o último exemplo.
+
+```javascript
+
+// Módulo Global
+var myModule = (function () {
+	
+	// Objeto Module
+	var module = {},
+		privateVariable = "Hello World";
+
+	function privateMethod () {
+		// ...
+	}
+
+	module.publicProperty = "Foobar";
+	module.publicMethod = function () {
+		console.log( privateVariable );
+	};
+
+	return module;
+})();
+
+```
+
+### Ferramentas e Frameworks Específicos para Implementações do Padrão Modular
+
+**Dojo**
+
+O Dojo fornece um método conveniente para trabalhar com objetos chamado `dojo.setObject()`. Ele pega como primeiro argumento uma string separada por pontos como esta `myObj.parent.child` que se refere a propriedade chamada "child" (filho) com um objeto "parent" (pai) definido dentro de "myObj". Usando `setObject()` podemos configurar o valor dos filhos, criando qualquer objeto intermediário no resto do caminho passado se eles ainda não existirem.
+
+Por exemplo, se nós queremos declarar `basket.core` como um objeto do namespace `store`, isto pode ser realizado usando a forma tradicional:
+
+```javascript
+
+var store = window.store || {};
+
+if ( !store["basket"] ) {
+	store.basket = {};
+}
+
+if ( !store.basket["core"] ) {
+	store.basket.core = {};
+}
+
+store.basket.core = {
+	// ... resto de nossa lógica
+}
+
+```
+
+Ou então usando o Dojo 1.7 (versão compatível com AMD) e superior:
+
+```javascript
+
+require(["dojo/_base/customStore"], function ( store ) {
+	
+	// usando dojo.setObject()
+	store.setObject( "basket.core", (function () {
+		
+		var basket = [];
+
+		function privateMethod () {
+			console.log( basket );
+		}
+
+		return {
+			publicMethod: function () {
+				privateMethod();
+			}
+		};
+
+	}) );
+});
+
+```
+
+Para mais informação sobre `dojo.setObject()`, veja a documentação [oficial](http://dojotoolkit.org/reference-guide/1.7/dojo/setObject.html);
+
+**ExtJS**
+
